@@ -79,7 +79,7 @@ Bolo kya karna hai?`;
   if(lower.includes('udhar list') || lower.includes('khata') || lower.includes('udhar dikhao')){
     const {data} = await supabase.from('customers').select('*').gt('total_udhar',0).order('total_udhar',{ascending:false}).limit(20);
     if(!data || data.length===0) return '✅ Koi udhar baki nahi hai!';
-    let msg = '*📒 Udhar List:*
+    let msg = "Udhar List:\n";
 ';
     data.forEach(c=> msg += `• ${c.name}: ₹${c.total_udhar}
 `);
