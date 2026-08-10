@@ -1,141 +1,113 @@
-// DUKANDAAR AI 2.0 - Sell on WhatsApp - Full Fixed Code
-// Features: Hindi-English, Fuzzy Search, Image OCR, Always-Reply, Render Keep-Alive
-require('dotenv').config();
-const express = require('express');
-const axios = require('axios');
-const { createClient } = require('@supabase/supabase-js');
-const Tesseract = require('tesseract.js');
-const fs = require('fs');
+import express from "express";
+import bodyParser from "body-parser";
+import { createClient } from "@supabase/supabase-js";
+import axios from "axios";
+import Tesseract from "tesseract.js";
 
 const app = express();
-app.use(express.json({ limit: '10mb' }));
+app.use(bodyParser.json());
 
-const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "dukandaar123";
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
+// --- CONFIG ---
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
-const PORT = process.env.PORT || 3000;
+const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
+const PHONE_ID = process.env.PHONE_ID;
 
-const HINDI_MAP = {
-  "balti": "bucket", "baltis": "bucket", "balty": "bucket",
+// Keep Render alive - pings itself every 10 mins
+setInterval(() => {
+  axios.get(https://dukandaar-ai.onrender.com/).catch(()=>{});
+  console.log("keep-alive ping");
+}, 10 * 60 * 1000);
+
+// Hindi + Common mistakes dictionary
+const DICTIONARY = {
+  "balti": "bucket", "bulti": "bucket", "balty": "bucket",
   "jhadu": "broom", "jhaadu": "broom",
+  "pocha": "mop", "poncha": "mop",
   "aata": "atta", "atta": "atta",
-  "tel": "oil", "chini": "sugar", "namak": "salt",
-  "dormat": "doormat", "darmat": "doormat", "paaydaan": "doormat",
-  "katori": "bowl", "thali": "plate", "chawal": "rice",
-  "sabun": "soap", "lizol": "lizol"
+  "dormat": "doormat", "paidan": "doormat",
+  "lizol": "lizol", "phenyl": "phenyl"
 };
 
+// Fuzzy match - Letter correction
 function levenshtein(a, b) {
-  const matrix = [];
-  for (let i = 0; i <= b.length; i++) matrix[i] = [i];
-  for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b.charAt(i-1) === a.charAt(j-1)) matrix[i][j] = matrix[i-1][j-1];
-      else matrix[i][j] = Math.min(matrix[i-1][j-1]+1, matrix[i][j-1]+1, matrix[i-1][j]+1);
-    }
+  const m = []; for(let i=0;i<=b.length;i++) m[i]=[i]; for(let j=0;j<=a.length;j++) m[0][j]=j;
+  for(let i=1;i<=b.length;i++) for(let j=1;j<=a.length;j++) m[i][j]= b.charAt(i-1)==a.charAt(j-1)? m[i-1][j-1] : Math.min(m[i-1][j-1]+1, m[i][j-1]+1, m[i-1][j]+1);
+  return m[b.length][a.length];
+}
+
+async function findProducts(text) {
+  let q = text.toLowerCase().trim();
+  q = DICTIONARY[q] || q; // Hindi to English
+
+  // 1. Exact search
+  let { data } = await supabase.from("products").select("*").ilike("name", %${q}%).limit(5);
+  if (data && data.length > 0) return data;
+
+  // 2. Fuzzy search if not found
+  let { data: all } = await supabase.from("products").select("*").limit(1000);
+  let best = [];
+  for(let p of all) {
+    let dist = levenshtein(q, p.name.toLowerCase().substring(0, q.length+2));
+    if(dist <= 2 || p.name.toLowerCase().includes(q)) best.push(p);
   }
-  return matrix[b.length][a.length];
+  return best.slice(0,5);
 }
 
-function correctAndTranslate(query) {
-  let q = query.toLowerCase().trim();
-  if (HINDI_MAP[q]) q = HINDI_MAP[q];
-  let words = q.split(" ").map(w => HINDI_MAP[w] || w);
-  q = words.join(" ");
-  return q;
+async function sendWhatsApp(to, text) {
+  await axios.post(https://graph.facebook.com/v20.0/${PHONE_ID}/messages, {
+    messaging_product: "whatsapp", to: to, text: { body: text }
+  }, { headers: { Authorization: Bearer ${WHATSAPP_TOKEN} } });
 }
 
-async function searchProducts(rawQuery) {
-  const cleanQuery = correctAndTranslate(rawQuery);
-  console.log(`Original: ${rawQuery} -> Cleaned: ${cleanQuery}`);
-  let { data: products } = await supabase.from('products').select('*').ilike('name', `%${cleanQuery}%`).limit(10);
-  if (products && products.length > 0) return products;
-  const { data: allProducts } = await supabase.from('products').select('*').limit(200);
-  let scored = [];
-  if (allProducts) {
-    for (let p of allProducts) {
-      const dist = levenshtein(cleanQuery.toLowerCase(), p.name.toLowerCase().substring(0, cleanQuery.length + 5));
-      if (p.name.toLowerCase().includes(cleanQuery.toLowerCase().split(" ")[0]) || dist <= 2) {
-        scored.push({ product: p, score: dist });
-      }
-    }
-    scored.sort((a,b) => a.score - b.score);
-    return scored.slice(0,3).map(s => s.product);
-  }
-  return [];
-}
+app.get("/", (req,res)=> res.send("Dukaandaar AI Live - Sell Project"));
 
-async function sendWhatsApp(to, text, buttons = null) {
+app.post("/webhook", async (req,res)=>{
   try {
-    let payload;
-    if (buttons) {
-      payload = { messaging_product: "whatsapp", to: to, type: "interactive", interactive: { type: "button", body: { text: text }, action: { buttons: buttons } } };
-    } else {
-      payload = { messaging_product: "whatsapp", to: to, type: "text", text: { body: text } };
+    const msg = req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    if(!msg) return res.sendStatus(200);
+    const from = msg.from;
+    let userText = msg.text?.body || "";
+
+    // --- FEATURE: Screenshot / Handwritten page reading ---
+    if(msg.type === "image") {
+      const mediaId = msg.image.id;
+      // Get image URL from Meta
+      const mediaUrlRes = await axios.get(https://graph.facebook.com/v20.0/${mediaId}, { headers: { Authorization: Bearer ${WHATSAPP_TOKEN} } });
+      const imageUrl = mediaUrlRes.data.url;
+      const imageBin = await axios.get(imageUrl, { headers: { Authorization: Bearer ${WHATSAPP_TOKEN} }, responseType: 'arraybuffer' });
+      // OCR
+      const { data: { text } } = await Tesseract.recognize(Buffer.from(imageBin.data), 'eng+hin');
+      userText = text; // OCR text becomes search query
+      await sendWhatsApp(from, Photo samajh gaya! Aapne likha hai: "${text.substring(0,100)}"\nAb products dhoondh raha hu...);
     }
-    await axios.post(`https://graph.facebook.com/v19.0/${PHONE_NUMBER_ID}/messages`, payload, { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, 'Content-Type': 'application/json' } });
-  } catch (e) { console.error("Send Error:", e.response?.data || e.message); }
-}
 
-async function handleImageMessage(imageId, from) {
-  try {
-    await sendWhatsApp(from, "Photo mil gaya! Pad raha hu... 2 sec 📸");
-    const mediaInfo = await axios.get(`https://graph.facebook.com/v19.0/${imageId}`, { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` } });
-    const imageUrl = mediaInfo.data.url;
-    const imageRes = await axios.get(imageUrl, { headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` }, responseType: 'arraybuffer' });
-    const tempPath = `/tmp/${imageId}.jpg`;
-    fs.writeFileSync(tempPath, imageRes.data);
-    const { data: { text } } = await Tesseract.recognize(tempPath, 'eng+hin');
-    console.log("OCR Text:", text);
-    try { fs.unlinkSync(tempPath); } catch(e){}
-    if (!text || text.trim().length < 2) { await sendWhatsApp(from, "Photo saaf nahi hai. Product naam likh ke bhejo jaise 'Bucket'"); return; }
-    await sendWhatsApp(from, `Aapne ye likha hai photo me: "${text.substring(0,200)}"\n\nIsme se dhoondh raha hu...`);
-    const firstQuery = text.split('\n')[0].trim();
-    const products = await searchProducts(firstQuery);
-    await handleProductReply(from, products, firstQuery);
-  } catch (err) { console.error("Image error", err); await sendWhatsApp(from, "Photo padhne me problem hui. Seedha naam likh ke bhejo - jaise 'Bucket'"); }
-}
+    if(!userText) return res.sendStatus(200);
 
-async function handleProductReply(from, products, query) {
-  if (!products || products.length === 0) {
-    await sendWhatsApp(from, `Maaf kijiye, "${query}" abhi stock me nahi mila. 🙏\n\nAap ye try karo: Bucket, Lizol, Pigeon Doormat, Aata 5kg, Broom\nYa product ka photo bhejo, me dhoondh dunga!`);
-    return;
-  }
-  let text = `Ye raha "${query}" ke liye:\n\n`;
-  let buttons = [];
-  products.slice(0,3).forEach((p,i) => {
-    text += `${i+1}. ${p.name} - Rs.${p.price}\n`;
-    buttons.push({ type: "reply", reply: { id: `ORDER_${p.id}`, title: `Order ${i+1}` } });
-  });
-  text += `\nBatao kaunsa order karna hai? Click button`;
-  if (buttons.length > 0) await sendWhatsApp(from, text, buttons); else await sendWhatsApp(from, text);
-}
+    const products = await findProducts(userText);
 
-app.get('/webhook', (req,res) => { if (req.query['hub.verify_token'] === VERIFY_TOKEN) res.send(req.query['hub.challenge']); else res.sendStatus(403); });
-app.post('/webhook', async (req,res) => {
+    if(products.length === 0) {
+      // ALWAYS REPLY - Bug fixed
+      await sendWhatsApp(from, Maaf kijiye, "${userText}" stock me nahi mila. 🙏\nAap 'Bucket', 'Atta 5kg', 'Doormat' try karo.\nYa product ka photo bhejo, mai dhoondh dunga.);
+      return res.sendStatus(200);
+    }
+
+    // Found - Send list with Order button text
+    let reply = Ye rahe ${products.length} products "${userText}" ke liye:\n\n;
+    products.forEach((p,i)=> {
+      reply += ${i+1}. ${p.name} - Rs ${p.price}\nOrder karne ke liye likho: Order ${p.id}\n\n;
+    });
+    await sendWhatsApp(from, reply);
+
+    // Save to messages table
+    await supabase.from("messages").insert({ phone: from, query: userText, reply: reply });
+
+  } catch(e) { console.error(e); }
   res.sendStatus(200);
-  try {
-    const entry = req.body.entry?.[0]; const change = entry?.changes?.[0]; const value = change?.value; const message = value?.messages?.[0];
-    if (!message) return;
-    const from = message.from; const type = message.type;
-    await supabase.from('messages').insert([{ phone: from, type: type, raw: message, created_at: new Date() }]);
-    if (type === 'text') { const q = message.text.body; const products = await searchProducts(q); await handleProductReply(from, products, q); }
-    else if (type === 'image') { await handleImageMessage(message.image.id, from); }
-    else if (type === 'interactive') {
-      const buttonId = message.interactive.button_reply.id;
-      if (buttonId.startsWith('ORDER_')) {
-        const productId = buttonId.replace('ORDER_','');
-        const { data: prod } = await supabase.from('products').select('*').eq('id', productId).single();
-        const orderId = `ORD-${Date.now()}`;
-        await supabase.from('orders').insert([{ order_id: orderId, phone: from, product_id: productId, product_name: prod?.name || 'Unknown', status: 'confirmed', created_at: new Date() }]);
-        await sendWhatsApp(from, `Order Confirmed! Rahul Jha ji, aapne ${prod?.name} - order kiya.\n\nTotal Bill ban raha hai... Mohone shop se delivery 1 ghante me hogi. Cash on Delivery available!\n\nOrder ID: ${orderId}`);
-      }
-    }
-  } catch (e) { console.error("Webhook error", e); }
 });
 
-app.get('/', (req,res) => res.send('Dukandaar AI 2.0 is LIVE - Hindi+English+Photo OCR'));
-app.get('/ping', (req,res) => res.send('pong '+ new Date().toISOString()));
-app.listen(PORT, () => console.log(`Server LIVE on ${PORT}`));
+app.get("/webhook", (req,res)=>{
+  if(req.query["hub.verify_token"] === "dukandaar123") res.send(req.query["hub.challenge"]);
+  else res.sendStatus(403);
+});
+
+app.listen(10000, ()=> console.log("Live on 10000"));
