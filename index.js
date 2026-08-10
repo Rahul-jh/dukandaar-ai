@@ -7,18 +7,15 @@ import Tesseract from "tesseract.js";
 const app = express();
 app.use(bodyParser.json());
 
-// --- CONFIG ---
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
 const PHONE_ID = process.env.PHONE_ID;
 
-// Keep Render alive - pings itself every 10 mins
 setInterval(() => {
-  axios.get(https://dukandaar-ai.onrender.com/).catch(()=>{});
+  axios.get("https://dukandaar-ai.onrender.com/").catch(()=>{});
   console.log("keep-alive ping");
 }, 10 * 60 * 1000);
 
-// Hindi + Common mistakes dictionary
 const DICTIONARY = {
   "balti": "bucket", "bulti": "bucket", "balty": "bucket",
   "jhadu": "broom", "jhaadu": "broom",
@@ -28,7 +25,6 @@ const DICTIONARY = {
   "lizol": "lizol", "phenyl": "phenyl"
 };
 
-// Fuzzy match - Letter correction
 function levenshtein(a, b) {
   const m = []; for(let i=0;i<=b.length;i++) m[i]=[i]; for(let j=0;j<=a.length;j++) m[0][j]=j;
   for(let i=1;i<=b.length;i++) for(let j=1;j<=a.length;j++) m[i][j]= b.charAt(i-1)==a.charAt(j-1)? m[i-1][j-1] : Math.min(m[i-1][j-1]+1, m[i][j-1]+1, m[i-1][j]+1);
@@ -37,13 +33,9 @@ function levenshtein(a, b) {
 
 async function findProducts(text) {
   let q = text.toLowerCase().trim();
-  q = DICTIONARY[q] || q; // Hindi to English
-
-  // 1. Exact search
+  q = DICTIONARY[q] || q;
   let { data } = await supabase.from("products").select("*").ilike("name", %${q}%).limit(5);
   if (data && data.length > 0) return data;
-
-  // 2. Fuzzy search if not found
   let { data: all } = await supabase.from("products").select("*").limit(1000);
   let best = [];
   for(let p of all) {
@@ -68,37 +60,41 @@ app.post("/webhook", async (req,res)=>{
     const from = msg.from;
     let userText = msg.text?.body || "";
 
-    // --- FEATURE: Screenshot / Handwritten page reading ---
     if(msg.type === "image") {
       const mediaId = msg.image.id;
-      // Get image URL from Meta
       const mediaUrlRes = await axios.get(https://graph.facebook.com/v20.0/${mediaId}, { headers: { Authorization: Bearer ${WHATSAPP_TOKEN} } });
       const imageUrl = mediaUrlRes.data.url;
       const imageBin = await axios.get(imageUrl, { headers: { Authorization: Bearer ${WHATSAPP_TOKEN} }, responseType: 'arraybuffer' });
-      // OCR
       const { data: { text } } = await Tesseract.recognize(Buffer.from(imageBin.data), 'eng+hin');
-      userText = text; // OCR text becomes search query
-      await sendWhatsApp(from, Photo samajh gaya! Aapne likha hai: "${text.substring(0,100)}"\nAb products dhoondh raha hu...);
+      userText = text;
+      await sendWhatsApp(from, Photo samajh gaya! Aapne likha hai: "${text.substring(0,100)}" Ab products dhoondh raha hu...);
     }
 
     if(!userText) return res.sendStatus(200);
 
+    // ORDER HANDLING ADDED BACK
+    if(userText.toLowerCase().startsWith("order")) {
+      const id = userText.replace(/[^0-9]/g, "");
+      const { data: prod } = await supabase.from("products").select("*").eq("id", id).single();
+      if(prod) {
+        await supabase.from("orders").insert({ phone: from, product_id: prod.id, product_name: prod.name });
+        await sendWhatsApp(from, Order Confirmed! ✅ ${prod.name} - Rs ${prod.price}\nOrder ID: ${Date.now()});
+        return res.sendStatus(200);
+      }
+    }
+
     const products = await findProducts(userText);
 
     if(products.length === 0) {
-      // ALWAYS REPLY - Bug fixed
       await sendWhatsApp(from, Maaf kijiye, "${userText}" stock me nahi mila. 🙏\nAap 'Bucket', 'Atta 5kg', 'Doormat' try karo.\nYa product ka photo bhejo, mai dhoondh dunga.);
       return res.sendStatus(200);
     }
 
-    // Found - Send list with Order button text
     let reply = Ye rahe ${products.length} products "${userText}" ke liye:\n\n;
     products.forEach((p,i)=> {
       reply += ${i+1}. ${p.name} - Rs ${p.price}\nOrder karne ke liye likho: Order ${p.id}\n\n;
     });
     await sendWhatsApp(from, reply);
-
-    // Save to messages table
     await supabase.from("messages").insert({ phone: from, query: userText, reply: reply });
 
   } catch(e) { console.error(e); }
