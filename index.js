@@ -15,7 +15,7 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 app.get('/', (req, res) => {
-  res.send('Dukaandaar AI is Live! 🚀');
+  res.send('Dukaandaar AI is Live 🚀');
 });
 
 app.get('/webhook', (req, res) => {
@@ -24,7 +24,7 @@ app.get('/webhook', (req, res) => {
   const challenge = req.query['hub.challenge'];
   console.log('Webhook verify attempt:', token);
   if (mode === 'subscribe' && token === VERIFY_TOKEN) {
-    console.log('✅ WEBHOOK VERIFIED');
+    console.log('WEBHOOK VERIFIED');
     res.status(200).send(challenge);
   } else {
     res.sendStatus(403);
@@ -43,14 +43,34 @@ app.post('/webhook', async (req, res) => {
       const from = message.from;
       const text = message.text?.body || 'Hi';
       const name = value?.contacts?.[0]?.profile?.name || 'Customer';
-      console.log(`📩 Incoming: ${text} from ${from} (${name})`);
+      console.log(📩 Incoming: ${text} from ${from} (${name}));
 
       await supabase.from('messages').insert([{ phone: from, message: text, name: name }]);
 
-      let replyText = `Namaste ${name}! 🙏\nDukaandaar AI here! 🤖\nYou said: "${text}"\n\nBot is WORKING! ✅`;
+      // --- START: PRODUCT SEARCH LOGIC ---
+      let replyText = '';
+      const { data: products } = await supabase
+       .from('products')
+       .select('*')
+       .ilike('name', %${text}%)
+       .limit(3);
+
+      if (products && products.length > 0) {
+        replyText = Namaste ${name}! 🙏 Dukaandaar AI - ${products.length} products mile:\n\n;
+        products.forEach((p, i) => {
+          replyText += ${i+1}. ${p.name}\n;
+          replyText += ` ${p.brand || ''} | ${p.unit || ''} | Stock: ${p.stock_qty}\n`;
+          replyText += ` MRP: ₹${p.mrp} | Price: ₹${p.price} + ${p.gst_rate}% GST = ₹${p.price_incl_gst}\n`;
+          replyText += ` HSN: ${p.hsn_code}\n\n`;
+        });
+        replyText += Batao kaunsa chahiye?;
+      } else {
+        replyText = Namaste ${name}! 🙏\nDukaandaar AI here! 🤖\nYou said: "${text}"\n\nProduct "${text}" nahi mila. Try: bucket, battery, doormat, brush, lock;
+      }
+      // --- END: PRODUCT SEARCH LOGIC ---
 
       await axios.post(
-        `https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages`,
+        https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages,
         {
           messaging_product: "whatsapp",
           to: from,
@@ -58,7 +78,7 @@ app.post('/webhook', async (req, res) => {
         },
         {
           headers: {
-            'Authorization': `Bearer ${WHATSAPP_TOKEN}`,
+            'Authorization': Bearer ${WHATSAPP_TOKEN},
             'Content-Type': 'application/json'
           }
         }
@@ -73,5 +93,5 @@ app.post('/webhook', async (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(Server running on port ${PORT});
 });
