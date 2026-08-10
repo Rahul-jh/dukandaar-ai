@@ -20,20 +20,25 @@ const DICTIONARY = {
   "jhadu": "broom", "jhaadu": "broom",
   "pocha": "mop", "poncha": "mop",
   "aata": "atta", "atta": "atta",
-  "dormat": "doormat", "paidan": "doormat",
-  "lizol": "lizol", "phenyl": "phenyl"
+  "dormat": "doormat", "paidan": "doormat"
 };
 
 function levenshtein(a, b) {
-  const m = []; for(let i=0;i<=b.length;i++) m[i]=[i]; for(let j=0;j<=a.length;j++) m[0][j]=j;
-  for(let i=1;i<=b.length;i++) for(let j=1;j<=a.length;j++) m[i][j]= b.charAt(i-1)==a.charAt(j-1)? m[i-1][j-1] : Math.min(m[i-1][j-1]+1, m[i][j-1]+1, m[i-1][j]+1);
+  const m = [];
+  for(let i=0;i<=b.length;i++) m[i]=[i];
+  for(let j=0;j<=a.length;j++) m[0][j]=j;
+  for(let i=1;i<=b.length;i++) {
+    for(let j=1;j<=a.length;j++) {
+      m[i][j] = b.charAt(i-1)==a.charAt(j-1)? m[i-1][j-1] : Math.min(m[i-1][j-1]+1, m[i][j-1]+1, m[i-1][j]+1);
+    }
+  }
   return m[b.length][a.length];
 }
 
 async function findProducts(text) {
   let q = text.toLowerCase().trim();
   q = DICTIONARY[q] || q;
-  let { data } = await supabase.from("products").select("*").ilike("name", %${q}%).limit(5);
+  let { data } = await supabase.from("products").select("*").ilike("name", "%" + q + "%").limit(5);
   if (data && data.length > 0) return data;
   let { data: all } = await supabase.from("products").select("*").limit(1000);
   let best = [];
@@ -45,12 +50,12 @@ async function findProducts(text) {
 }
 
 async function sendWhatsApp(to, text) {
-  await axios.post(https://graph.facebook.com/v20.0/${PHONE_ID}/messages, {
+  await axios.post("https://graph.facebook.com/v20.0/" + PHONE_ID + "/messages", {
     messaging_product: "whatsapp", to: to, text: { body: text }
-  }, { headers: { Authorization: Bearer ${WHATSAPP_TOKEN} } });
+  }, { headers: { Authorization: "Bearer " + WHATSAPP_TOKEN } });
 }
 
-app.get("/", (req,res)=> res.send("Dukaandaar AI Live - Sell Project 108 lines"));
+app.get("/", (req,res)=> res.send("Dukaandaar AI Live - 98 lines perfect"));
 
 app.post("/webhook", async (req,res)=>{
   try {
@@ -60,7 +65,7 @@ app.post("/webhook", async (req,res)=>{
     let userText = msg.text?.body || "";
 
     if(msg.type === "image") {
-      await sendWhatsApp(from, Photo mil gaya! Photo reading kal se chalu hoga. Abhi aap naam likh ke bhejo jaise 'Balti' ya 'Bucket');
+      await sendWhatsApp(from, "Photo mil gaya! Photo reading kal se chalu hoga. Abhi naam likh ke bhejo jaise 'Balti' ya 'Bucket'");
       return res.sendStatus(200);
     }
 
@@ -71,19 +76,19 @@ app.post("/webhook", async (req,res)=>{
       const { data: prod } = await supabase.from("products").select("*").eq("id", id).single();
       if(prod) {
         await supabase.from("orders").insert({ phone: from, product_id: prod.id, product_name: prod.name });
-        await sendWhatsApp(from, Order Confirmed! ✅ ${prod.name} - Rs ${prod.price}\nOrder ID: ${Date.now()});
+        await sendWhatsApp(from, "Order Confirmed! " + prod.name + " - Rs " + prod.price);
         return res.sendStatus(200);
       }
     }
 
     const products = await findProducts(userText);
     if(products.length === 0) {
-      await sendWhatsApp(from, Maaf kijiye, "${userText}" stock me nahi mila. 🙏\nAap 'Bucket', 'Atta 5kg', 'Doormat' try karo.);
+      await sendWhatsApp(from, "Maaf kijiye, '" + userText + "' stock me nahi mila. 'Bucket', 'Atta 5kg' try karo.");
       return res.sendStatus(200);
     }
 
-    let reply = Ye rahe ${products.length} products "${userText}" ke liye:\n\n;
-    products.forEach((p,i)=> { reply += ${i+1}. ${p.name} - Rs ${p.price}\nOrder: Order ${p.id}\n\n; });
+    let reply = "Ye rahe " + products.length + " products '" + userText + "' ke liye:\n\n";
+    products.forEach((p,i)=> { reply += (i+1) + ". " + p.name + " - Rs " + p.price + "\nOrder: Order " + p.id + "\n\n"; });
     await sendWhatsApp(from, reply);
     await supabase.from("messages").insert({ phone: from, query: userText, reply: reply });
   } catch(e) { console.error(e); }
