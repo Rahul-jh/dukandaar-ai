@@ -11,33 +11,45 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const VERIFY_TOKEN = process.env.VERIFY_TOKEN || "dukandaar123";
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const seenMsg = new Set();
-const DICT = { balti:'bucket', dormat:'doormat', jhadu:'broom', pochha:'mop', aata:'atta', aloo:'potato' };
+const DICT = { balti:'bucket', dormat:'doormat', jhadu:'broom', pochha:'mop', aata:'atta' };
 function getKg(userText, prodName){
-  const u = userText.match(/(\d+)\s*kg/i)?.[1];
-  const p = prodName.match(/(\d+)\s*kg/i)?.[1];
-  if(u && p) return { userKg: parseInt(u), prodKg: parseInt(p) };
+  const u = userText.match(/(\d+)\s*kg/i);
+  const p = prodName.match(/(\d+)\s*kg/i);
+  if(u && p){
+    return { userKg: parseInt(u[1]), prodKg: parseInt(p[1]) };
+  }
   return null;
 }
 async function findProducts(q){
   if(!q) return [];
   let s = q.toLowerCase().trim();
-  s = DICT[s] || s;
+  if(DICT[s]) s = DICT[s];
   const words = s.split(' ').filter(w=>w.length>1);
   let query = supabase.from('products').select('*');
-  if(words.length>=1){
-    query = query.or(words.map(w=>name.ilike.%${w}%).join(','));
+  if(words.length>0){
+    const orFilter = words.map(w => name.ilike.%${w}%).join(',');
+    query = query.or(orFilter);
   }
-  const {data} = await query.limit(5);
-  return data||[];
+  const { data } = await query.limit(5);
+  return data || [];
 }
 async function sendWhatsApp(to, body){
   try{
     await axios.post(https://graph.facebook.com/v20.0/${PHONE_ID}/messages, {
-      messaging_product:"whatsapp", to, type:"text", text:{body}
-    }, { headers:{ Authorization:Bearer ${WHATSAPP_TOKEN} } });
-  }catch(e){ console.error("META ERROR:", JSON.stringify(e.response?.data || e.message)); }
+      messaging_product: "whatsapp",
+      to: to,
+      type: "text",
+      text: { body: body }
+    }, {
+      headers: { Authorization: Bearer ${WHATSAPP_TOKEN} }
+    });
+  }catch(e){
+    console.error("META ERROR:", JSON.stringify(e.response?.data || e.message));
+  }
 }
-app.get('/', (req,res)=>res.send('Dukaandaar AI Live - 112 lines with 1kg calc'));
+app.get('/', (req,res)=>{
+  res.send('Dukaandaar AI Live - Final with 1KG calc');
+});
 app.get('/webhook', (req,res)=>{
   if(req.query['hub.mode']==='subscribe' && req.query['hub.verify_token']===VERIFY_TOKEN){
     return res.send(req.query['hub.challenge']);
@@ -59,9 +71,9 @@ app.post('/webhook', async (req,res)=>{
     if(!text) return res.sendStatus(200);
     if(text.toLowerCase().startsWith('order')){
       const id = text.split(' ')[1];
-      const {data:prod} = await supabase.from('products').select('*').eq('id', id).single();
+      const { data: prod } = await supabase.from('products').select('*').eq('id', id).single();
       if(prod){
-        await supabase.from('orders').insert([{ phone:from, product_id:id, product_name:prod.name, price:prod.price }]);
+        await supabase.from('orders').insert([{ phone: from, product_id: id, product_name: prod.name, price: prod.price }]);
         await sendWhatsApp(from, Order Confirmed! ${prod.name} Rs ${prod.price}. Jaldi deliver hoga!);
       }
       return res.sendStatus(200);
@@ -84,6 +96,9 @@ app.post('/webhook', async (req,res)=>{
       await sendWhatsApp(from, reply);
     }
     res.sendStatus(200);
-  }catch(e){ console.error(e); res.sendStatus(200); }
+  }catch(e){
+    console.error(e);
+    res.sendStatus(200);
+  }
 });
-app.listen(PORT, ()=>console.log('Live on '+PORT));
+app.listen(PORT, ()=>console.log(Live on ${PORT}));
