@@ -27,7 +27,7 @@ async function findProducts(q){
   const words = s.split(' ').filter(w=>w.length>1);
   let query = supabase.from('products').select('*');
   if(words.length>0){
-    const orFilter = words.map(w => name.ilike.%${w}%).join(',');
+    const orFilter = words.map(w => `name.ilike.%${w}%`).join(',');
     query = query.or(orFilter);
   }
   const { data } = await query.limit(5);
@@ -35,13 +35,13 @@ async function findProducts(q){
 }
 async function sendWhatsApp(to, body){
   try{
-    await axios.post(https://graph.facebook.com/v20.0/${PHONE_ID}/messages, {
+    await axios.post(`https://graph.facebook.com/v20.0/${PHONE_ID}/messages`, {
       messaging_product: "whatsapp",
       to: to,
       type: "text",
       text: { body: body }
     }, {
-      headers: { Authorization: Bearer ${WHATSAPP_TOKEN} }
+      headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}` }
     });
   }catch(e){
     console.error("META ERROR:", JSON.stringify(e.response?.data || e.message));
@@ -74,15 +74,15 @@ app.post('/webhook', async (req,res)=>{
       const { data: prod } = await supabase.from('products').select('*').eq('id', id).single();
       if(prod){
         await supabase.from('orders').insert([{ phone: from, product_id: id, product_name: prod.name, price: prod.price }]);
-        await sendWhatsApp(from, Order Confirmed! ${prod.name} Rs ${prod.price}. Jaldi deliver hoga!);
+        await sendWhatsApp(from, `Order Confirmed! ${prod.name} Rs ${prod.price}. Jaldi deliver hoga!`);
       }
       return res.sendStatus(200);
     }
     const products = await findProducts(text);
     if(products.length===0){
-      await sendWhatsApp(from, Maaf kijiye, '${text}' stock me nahi mila. 'Bucket', 'Atta 5kg' try karo.);
+      await sendWhatsApp(from, `Maaf kijiye, '${text}' stock me nahi mila. 'Bucket', 'Atta 5kg' try karo.`);
     }else{
-      let reply = Ye rahe ${products.length} products '${text}' ke liye:\n;
+      let reply = `Ye rahe ${products.length} products '${text}' ke liye:\n`;
       products.forEach((p,i)=>{
         let finalPrice = p.price;
         let note = '';
@@ -91,7 +91,7 @@ app.post('/webhook', async (req,res)=>{
           finalPrice = Math.round((p.price / kgInfo.prodKg) * kgInfo.userKg);
           note = ` (${kgInfo.prodKg}KG Rs ${p.price} -> ${kgInfo.userKg}KG Rs ${finalPrice})`;
         }
-        reply += \n${i+1}. ${p.name} - Rs ${finalPrice}${note}\nOrder: Order ${p.id};
+        reply += `\n${i+1}. ${p.name} - Rs ${finalPrice}${note}\nOrder: Order ${p.id}`;
       });
       await sendWhatsApp(from, reply);
     }
@@ -101,4 +101,4 @@ app.post('/webhook', async (req,res)=>{
     res.sendStatus(200);
   }
 });
-app.listen(PORT, ()=>console.log(Live on ${PORT}));
+app.listen(PORT, ()=>console.log('Live on '+PORT));
