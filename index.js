@@ -2,7 +2,6 @@ import express from "express";
 import bodyParser from "body-parser";
 import { createClient } from "@supabase/supabase-js";
 import axios from "axios";
-import Tesseract from "tesseract.js";
 
 const app = express();
 app.use(bodyParser.json());
@@ -51,7 +50,7 @@ async function sendWhatsApp(to, text) {
   }, { headers: { Authorization: Bearer ${WHATSAPP_TOKEN} } });
 }
 
-app.get("/", (req,res)=> res.send("Dukaandaar AI Live - Sell Project"));
+app.get("/", (req,res)=> res.send("Dukaandaar AI Live - Sell Project 108 lines"));
 
 app.post("/webhook", async (req,res)=>{
   try {
@@ -61,18 +60,12 @@ app.post("/webhook", async (req,res)=>{
     let userText = msg.text?.body || "";
 
     if(msg.type === "image") {
-      const mediaId = msg.image.id;
-      const mediaUrlRes = await axios.get(https://graph.facebook.com/v20.0/${mediaId}, { headers: { Authorization: Bearer ${WHATSAPP_TOKEN} } });
-      const imageUrl = mediaUrlRes.data.url;
-      const imageBin = await axios.get(imageUrl, { headers: { Authorization: Bearer ${WHATSAPP_TOKEN} }, responseType: 'arraybuffer' });
-      const { data: { text } } = await Tesseract.recognize(Buffer.from(imageBin.data), 'eng+hin');
-      userText = text;
-      await sendWhatsApp(from, Photo samajh gaya! Aapne likha hai: "${text.substring(0,100)}" Ab products dhoondh raha hu...);
+      await sendWhatsApp(from, Photo mil gaya! Photo reading kal se chalu hoga. Abhi aap naam likh ke bhejo jaise 'Balti' ya 'Bucket');
+      return res.sendStatus(200);
     }
 
     if(!userText) return res.sendStatus(200);
 
-    // ORDER HANDLING ADDED BACK
     if(userText.toLowerCase().startsWith("order")) {
       const id = userText.replace(/[^0-9]/g, "");
       const { data: prod } = await supabase.from("products").select("*").eq("id", id).single();
@@ -84,19 +77,15 @@ app.post("/webhook", async (req,res)=>{
     }
 
     const products = await findProducts(userText);
-
     if(products.length === 0) {
-      await sendWhatsApp(from, Maaf kijiye, "${userText}" stock me nahi mila. 🙏\nAap 'Bucket', 'Atta 5kg', 'Doormat' try karo.\nYa product ka photo bhejo, mai dhoondh dunga.);
+      await sendWhatsApp(from, Maaf kijiye, "${userText}" stock me nahi mila. 🙏\nAap 'Bucket', 'Atta 5kg', 'Doormat' try karo.);
       return res.sendStatus(200);
     }
 
     let reply = Ye rahe ${products.length} products "${userText}" ke liye:\n\n;
-    products.forEach((p,i)=> {
-      reply += ${i+1}. ${p.name} - Rs ${p.price}\nOrder karne ke liye likho: Order ${p.id}\n\n;
-    });
+    products.forEach((p,i)=> { reply += ${i+1}. ${p.name} - Rs ${p.price}\nOrder: Order ${p.id}\n\n; });
     await sendWhatsApp(from, reply);
     await supabase.from("messages").insert({ phone: from, query: userText, reply: reply });
-
   } catch(e) { console.error(e); }
   res.sendStatus(200);
 });
