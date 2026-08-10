@@ -63,14 +63,11 @@ app.post("/webhook", async (req,res)=>{
     if(!msg) return res.sendStatus(200);
     const from = msg.from;
     let userText = msg.text?.body || "";
-
     if(msg.type === "image") {
       await sendWhatsApp(from, "Photo mil gaya! Photo reading kal se chalu hoga. Abhi naam likh ke bhejo jaise 'Balti' ya 'Bucket'");
       return res.sendStatus(200);
     }
-
     if(!userText) return res.sendStatus(200);
-
     if(userText.toLowerCase().startsWith("order")) {
       const id = userText.replace(/[^0-9]/g, "");
       const { data: prod } = await supabase.from("products").select("*").eq("id", id).single();
@@ -80,13 +77,11 @@ app.post("/webhook", async (req,res)=>{
         return res.sendStatus(200);
       }
     }
-
     const products = await findProducts(userText);
     if(products.length === 0) {
       await sendWhatsApp(from, "Maaf kijiye, '" + userText + "' stock me nahi mila. 'Bucket', 'Atta 5kg' try karo.");
       return res.sendStatus(200);
     }
-
     let reply = "Ye rahe " + products.length + " products '" + userText + "' ke liye:\n\n";
     products.forEach((p,i)=> { reply += (i+1) + ". " + p.name + " - Rs " + p.price + "\nOrder: Order " + p.id + "\n\n"; });
     await sendWhatsApp(from, reply);
