@@ -15,7 +15,7 @@ const SUPABASE_KEY = process.env.SUPABASE_KEY;
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 app.get('/', (req, res) => {
-  res.send('Dukaandaar AI is Live 🚀');
+  res.send('Dukaandaar AI is Live');
 });
 
 app.get('/webhook', (req, res) => {
@@ -32,7 +32,7 @@ app.get('/webhook', (req, res) => {
 });
 
 app.post('/webhook', async (req, res) => {
-  console.log('🔥 WEBHOOK HIT - Message received!');
+  console.log('WEBHOOK HIT - Message received!');
   try {
     const entry = req.body.entry?.[0];
     const changes = entry?.changes?.[0];
@@ -43,34 +43,32 @@ app.post('/webhook', async (req, res) => {
       const from = message.from;
       const text = message.text?.body || 'Hi';
       const name = value?.contacts?.[0]?.profile?.name || 'Customer';
-      console.log(📩 Incoming: ${text} from ${from} (${name}));
+      console.log('Incoming: ' + text + ' from ' + from + ' (' + name + ')');
 
       await supabase.from('messages').insert([{ phone: from, message: text, name: name }]);
 
-      // --- START: PRODUCT SEARCH LOGIC ---
       let replyText = '';
       const { data: products } = await supabase
        .from('products')
        .select('*')
-       .ilike('name', %${text}%)
+       .ilike('name', '%' + text + '%')
        .limit(3);
 
       if (products && products.length > 0) {
-        replyText = Namaste ${name}! 🙏 Dukaandaar AI - ${products.length} products mile:\n\n;
+        replyText = 'Namaste ' + name + '! Dukaandaar AI - ' + products.length + ' products mile:\n\n';
         products.forEach((p, i) => {
-          replyText += ${i+1}. ${p.name}\n;
-          replyText += ` ${p.brand || ''} | ${p.unit || ''} | Stock: ${p.stock_qty}\n`;
-          replyText += ` MRP: ₹${p.mrp} | Price: ₹${p.price} + ${p.gst_rate}% GST = ₹${p.price_incl_gst}\n`;
-          replyText += ` HSN: ${p.hsn_code}\n\n`;
+          replyText += (i+1) + '. ' + p.name + '\n';
+          replyText += ' ' + (p.brand || '') + ' | ' + (p.unit || '') + ' | Stock: ' + p.stock_qty + '\n';
+          replyText += ' MRP: Rs ' + p.mrp + ' | Price: Rs ' + p.price + ' + ' + p.gst_rate + '% GST = Rs ' + p.price_incl_gst + '\n';
+          replyText += ' HSN: ' + p.hsn_code + '\n\n';
         });
-        replyText += Batao kaunsa chahiye?;
+        replyText += 'Batao kaunsa chahiye?';
       } else {
-        replyText = Namaste ${name}! 🙏\nDukaandaar AI here! 🤖\nYou said: "${text}"\n\nProduct "${text}" nahi mila. Try: bucket, battery, doormat, brush, lock;
+        replyText = 'Namaste ' + name + '! Dukaandaar AI here!\nYou said: "' + text + '"\n\nProduct "' + text + '" nahi mila. Try: bucket, battery, doormat, brush, lock';
       }
-      // --- END: PRODUCT SEARCH LOGIC ---
 
       await axios.post(
-        https://graph.facebook.com/v20.0/${PHONE_NUMBER_ID}/messages,
+        'https://graph.facebook.com/v20.0/' + PHONE_NUMBER_ID + '/messages',
         {
           messaging_product: "whatsapp",
           to: from,
@@ -78,20 +76,20 @@ app.post('/webhook', async (req, res) => {
         },
         {
           headers: {
-            'Authorization': Bearer ${WHATSAPP_TOKEN},
+            'Authorization': 'Bearer ' + WHATSAPP_TOKEN,
             'Content-Type': 'application/json'
           }
         }
       );
-      console.log('✅ Reply sent to', from);
+      console.log('Reply sent to ' + from);
     }
   } catch (error) {
-    console.log('❌ Error:', error.response?.data || error.message);
+    console.log('Error:', error.response?.data || error.message);
   }
   res.sendStatus(200);
 });
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(Server running on port ${PORT});
+  console.log('Server running on port ' + PORT);
 });
