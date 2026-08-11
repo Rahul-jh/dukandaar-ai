@@ -1,7 +1,16 @@
 services:
   - type: web
-    name: dukandaar-ai
+    name: dukaandaar-ai
     env: node
     plan: free
     buildCommand: npm install
     startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: STORE_WHATSAPP
+        value: 919999999999
