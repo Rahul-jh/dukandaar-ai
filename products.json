@@ -4,48 +4,89 @@
     "name": "Aashirvaad Atta 5kg",
     "price": 260,
     "category": "Grocery",
-    "inStock": true
+    "inStock": true,
+    "image": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=300",
+    "stock": 50
   },
   {
     "id": "2",
-    "name": "Fortune Oil 1L",
+    "name": "Fortune Sunflower Oil 1L",
     "price": 145,
     "category": "Grocery",
-    "inStock": true
+    "inStock": true,
+    "image": "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=300",
+    "stock": 50
   },
   {
     "id": "3",
     "name": "Tata Salt 1kg",
     "price": 28,
     "category": "Grocery",
-    "inStock": true
+    "inStock": true,
+    "image": "https://images.unsplash.com/photo-1586201375761-83865001e31c?w=300",
+    "stock": 50
   },
   {
     "id": "4",
-    "name": "Parle-G Biscuit",
+    "name": "Parle-G Biscuit Family Pack",
     "price": 40,
     "category": "Snacks",
-    "inStock": true
+    "inStock": true,
+    "image": "https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=300",
+    "stock": 50
   },
   {
     "id": "5",
-    "name": "Maggi Noodles",
+    "name": "Maggi Noodles 6 Pack",
     "price": 72,
     "category": "Snacks",
-    "inStock": true
+    "inStock": true,
+    "image": "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=300",
+    "stock": 50
   },
   {
     "id": "6",
-    "name": "Surf Excel 1kg",
-    "price": 125,
-    "category": "Cleaning",
-    "inStock": true
+    "name": "Amul Milk 500ml",
+    "price": 32,
+    "category": "Dairy",
+    "inStock": true,
+    "image": "https://images.unsplash.com/photo-1550583724-5f7cfc67d8de?w=300",
+    "stock": 50
   },
   {
     "id": "7",
-    "name": "Colgate 150g",
+    "name": "Surf Excel 1kg",
+    "price": 125,
+    "category": "Cleaning",
+    "inStock": true,
+    "image": "https://images.unsplash.com/photo-1583947215259-38e31be8751f?w=300",
+    "stock": 50
+  },
+  {
+    "id": "8",
+    "name": "Colgate Toothpaste 150g",
     "price": 95,
     "category": "Personal Care",
-    "inStock": true
+    "inStock": true,
+    "image": "https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?w=300",
+    "stock": 50
+  },
+  {
+    "id": "9",
+    "name": "Lifebuoy Soap 4x125g",
+    "price": 110,
+    "category": "Personal Care",
+    "inStock": true,
+    "image": "https://images.unsplash.com/photo-1600857544200-b2f666a9a2ec?w=300",
+    "stock": 50
+  },
+  {
+    "id": "10",
+    "name": "Tata Tea Gold 500g",
+    "price": 245,
+    "category": "Grocery",
+    "inStock": true,
+    "image": "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=300",
+    "stock": 50
   }
 ]
