@@ -230,7 +230,7 @@ function getProductListInteractive(products) {
 // ===== 4. ROUTES =====
 app.get('/', (req, res) => res.send('Dukandaar AI FINAL SECURE 4.0 LIVE ✅ | ' + new Date().toISOString()));
 app.get('/ping', (req, res) => res.send('pong ' + Date.now()));
-app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString(), products: 'overall stock' }));
+app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date().toISOString(), products: '1006' }));
 app.get('/webhook', (req, res) => {
   if (req.query['hub.verify_token'] === VERIFY_TOKEN) res.send(req.query['hub.challenge']);
   else res.sendStatus(403);
@@ -265,7 +265,7 @@ app.get('/stock', async (req, res) => {
 .error{color:#d00;font-size:13px;display:none;background:#ffeaea;padding:8px;border-radius:6px;margin:6px 0}
 .secure{font-size:11px;color:#666;text-align:center;margin-top:10px}
 </style></head><body>
-<div class="header"><h2 style="margin:0">Rahul's General Store</h2><p style="margin:6px 0 0">Secure Shop | Mohone 🔒 | Mohone</p></div>
+<div class="header"><h2 style="margin:0">Rahul's General Store</h2><p style="margin:6px 0 0">1006 Products | Secure Checkout 🔒 | Mohone</p></div>
 <input id="search" class="search" placeholder="Search Balti, Aata, Broom, Doormat... (Hindi+English)" onkeyup="filterProducts()" autocomplete="off">
 <div style="display:flex;gap:8px;margin-bottom:10px">
 <button onclick="startVoice()" style="padding:8px 12px;border-radius:8px;border:1px solid #075E54;background:#fff">🎤 Voice Search</button>
@@ -486,10 +486,9 @@ app.post('/webhook', async (req, res) => {
       let { data: ns } = await supabase.from('user_sessions').insert({ user_id: from, state: 'idle', attempts: 0 }).select().single();
       sess = ns;
     }
-    if (!sess) sess = { attempts: 0, state: 'idle' }; // safety fallback if insert fails
 
-    // Brute force protection for OTP - FIXED null check
-    if ((sess.attempts || 0) > 10) {
+    // Brute force protection for OTP
+    if (sess.attempts > 10) {
       await sendWhatsApp(from, '⚠️ Bahut zyada koshish. 10 min baad try karo.');
       return;
     }
@@ -546,7 +545,7 @@ app.post('/webhook', async (req, res) => {
     // Welcome - Improved language you asked
     const hiWords = ['hi', 'hello', 'hii', 'hey', 'namaste', 'namaskar', 'hlw', 'hlo', 'good morning', 'good evening', 'start', 'menu'];
     if (hiWords.includes(low)) {
-      const welcome = '🌟 Hello! I hope you are doing well. 😊\n\nWelcome to Dukaandaar AI - Your Smart Shopping Assistant from Rahul General Store, Mohone.\n\nThank you for reaching out! I am here to help you find anything you need quickly.\n\n📦 Click here to view overall stock:\nhttps://dukandaar-ai.onrender.com/stock\n\nYou can simply type any product name like Balti, Atta, Doormat or send a photo of your list.\n\nHave a wonderful day! 😊';
+      const welcome = '🌟 Hello! I hope you are doing well. 😊\n\nWelcome to *Dukaandaar AI* - Your Smart & Secure Shopping Assistant from Rahul General Store, Mohone.\n\nThank you for reaching out! I am here to help you find anything you need quickly and securely.\n\n📦 *View Full Stock (1006 products) - Secure Shop:*\nhttps://dukandaar-ai.onrender.com/stock\n\n🔒 *Secure Features:*\n• OTP verification before payment\n• Max 5 addresses saved securely\n• Instant bill on WhatsApp\n• UPI auto-open (GPay/PhonePe)\n• Hindi + English search (Balti=Bucket)\n• Photo list reading\n\nType product: "Balti", "Atta 5kg", "Doormat" or send photo.\n\nHave a wonderful & safe shopping day! 🙏';
       await sendWhatsApp(from, welcome); return;
     }
     if (low.includes('my address') || low === 'addresses') {
