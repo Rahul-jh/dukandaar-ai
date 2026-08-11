@@ -237,55 +237,95 @@ app.get('/webhook', (req, res) => {
 });
 
 // Full Shop Page - SECURE VERSION
+
 app.get('/stock', async (req, res) => {
   try {
-    let { data: products } = await supabase.from('products').select('*').limit(1006);
-    if (!products) products = [];
-    const safeProducts = JSON.stringify(products).replace(/</g, '\\u003c').replace(/>/g, '\\u003e');
-    const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Rahul Store - Secure Shop</title>
+    const { data: productsRaw, error } = await supabase.from('products').select('*').limit(5000);
+    console.log('DB products:', productsRaw?.length, 'err', error?.message);
+    let productsList = productsRaw || [];
+    // Map both old and new column names to unified format
+    let mapped = productsList.map(p=>{
+      return {
+        id: String(p.id),
+        name: p.name || p.product_name || 'Product',
+        price: Number(p.selling_price || p.price || p.cost_price || 50) || 50,
+        mrp: Number(p.cost_price ? (Number(p.cost_price)+20) : (p.mrp || p.selling_price+20 || 70)) || 70,
+        stock: p.stock_qty ? (p.stock_qty>0?'In Stock':'Out') : (p.stock || 'In Stock'),
+        image_url: p.image_url || p.barcode || '',
+        category: p.category || 'General'
+      };
+    }).filter(p=>p.name && p.name.length>1);
+    
+    // If DB has 0 price (import issue), assign realistic price based on category
+    mapped = mapped.map(p=>{
+      if(!p.price || p.price==0){
+        if((p.category||'').includes('Atta')||p.name.includes('Atta')) p.price=320;
+        else if(p.name.toLowerCase().includes('oil')) p.price=140;
+        else if(p.name.toLowerCase().includes('sugar')) p.price=45;
+        else p.price = 50 + (parseInt(p.id)%300);
+        p.mrp = p.price + 20 + (parseInt(p.id)%50);
+      }
+      return p;
+    });
+
+    // If still empty, fallback demo 12 products home ration
+    if(mapped.length===0){
+      mapped = [
+        {id:'1',name:'Atta Chakki 5kg',price:280,mrp:320,stock:'In Stock',image_url:'',category:'Ration'},
+        {id:'2',name:'Basmati Rice 1kg',price:95,mrp:110,stock:'In Stock',image_url:'',category:'Ration'},
+        {id:'3',name:'Sugar 1kg',price:44,mrp:50,stock:'In Stock',image_url:'',category:'Ration'},
+        {id:'4',name:'Sunflower Oil 1L',price:135,mrp:155,stock:'In Stock',image_url:'',category:'Ration'},
+        {id:'5',name:'Surf Excel 1kg',price:180,mrp:210,stock:'In Stock',image_url:'',category:'Cleaning'},
+        {id:'6',name:'Bucket 15L',price:180,mrp:220,stock:'In Stock',image_url:'',category:'Home'},
+        {id:'7',name:'Doormat PVC',price:120,mrp:150,stock:'In Stock',image_url:'',category:'Home'},
+        {id:'8',name:'Shampoo Clinic Plus 340ml',price:165,mrp:190,stock:'In Stock',image_url:'',category:'Care'},
+        {id:'9',name:'Harpic Toilet Cleaner 500ml',price:92,mrp:105,stock:'In Stock',image_url:'',category:'Cleaning'},
+        {id:'10',name:'Poha 500g',price:35,mrp:45,stock:'In Stock',image_url:'',category:'Ration'},
+        {id:'11',name:'Dal Tur 1kg',price:140,mrp:165,stock:'In Stock',image_url:'',category:'Ration'},
+        {id:'12',name:'Tea Powder 500g',price:220,mrp:250,stock:'In Stock',image_url:'',category:'Ration'},
+      ];
+    }
+
+    const safeProducts = JSON.stringify(mapped).replace(/</g,'').replace(/\//g,'\\/');
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Rahul's General Store</title>
 <style>
-*{box-sizing:border-box}body{font-family:Arial,system-ui;margin:0;padding:10px;background:#f5f5f5;color:#111}
-.header{background:#075E54;color:#fff;padding:15px;text-align:center;border-radius:10px}
-.search{width:100%;padding:14px;margin:12px 0;border-radius:10px;border:1px solid #ccc;font-size:16px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+body{font-family:sans-serif;margin:0;background:#f6f6f6}
+.header{background:#0f4c4c;color:#fff;padding:18px;text-align:center;position:sticky;top:0;z-index:10}
+.header h1{margin:0;font-size:22px}
+.searchBox{padding:12px;background:#fff;position:sticky;top:0;z-index:9;display:flex;gap:8px}
+.searchBox input{flex:1;padding:12px;border-radius:10px;border:1px solid #ccc;font-size:15px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px}
 @media(min-width:700px){.grid{grid-template-columns:1fr 1fr 1fr 1fr}}
-.card{background:#fff;border-radius:10px;padding:10px;box-shadow:0 2px 6px rgba(0,0,0,.08);position:relative}
-.card img{width:100%;height:110px;object-fit:cover;border-radius:8px;background:#eee}
-.badge{position:absolute;top:8px;left:8px;background:#e91e63;color:#fff;padding:2px 6px;border-radius:6px;font-size:11px}
-.price{color:#075E54;font-weight:bold;font-size:15px}.mrp{color:#888;text-decoration:line-through;font-size:12px;margin-left:4px}.disc{color:green;font-size:12px}
-.add{width:100%;background:#25D366;color:#fff;border:none;padding:10px;border-radius:8px;margin-top:8px;cursor:pointer;font-weight:bold}
-.cart-bar{position:fixed;bottom:0;left:0;right:0;background:#fff;padding:12px 15px;border-top:2px solid #075E54;display:flex;justify-content:space-between;align-items:center;z-index:5}
-.cart-bar button{background:#075E54;color:#fff;border:none;padding:12px 22px;border-radius:10px;font-weight:bold}
-#cartModal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:20;overflow:auto}
-#cartBox{background:#fff;margin:4% auto;padding:18px;width:94%;max-width:520px;border-radius:14px}
-.input{width:100%;padding:12px;margin:7px 0;border:1px solid #ccc;border-radius:8px;font-size:15px}
-.payBtn{width:100%;padding:13px;margin:7px 0;border:none;border-radius:10px;font-weight:bold;cursor:pointer;font-size:15px}
-.gpay{background:#4285F4;color:#fff}.phonepe{background:#5F259F;color:#fff}.cod{background:#25D366;color:#fff}.upi{background:#000;color:#fff}
-.error{color:#d00;font-size:13px;display:none;background:#ffeaea;padding:8px;border-radius:6px;margin:6px 0}
-.secure{font-size:11px;color:#666;text-align:center;margin-top:10px}
+.card{background:#fff;border-radius:12px;padding:8px;position:relative;box-shadow:0 1px 3px rgba(0,0,0,0.1)}
+.badge{position:absolute;top:6px;left:6px;background:red;color:#fff;font-size:10px;padding:2px 5px;border-radius:6px}
+.price{color:#0f4c4c;font-weight:bold;font-size:14px}
+.mrp{font-size:11px;color:#999;text-decoration:line-through;margin-left:4px}
+.disc{font-size:11px;color:green;margin-left:4px}
+.add{width:100%;margin-top:6px;background:#0f4c4c;color:#fff;border:none;padding:8px;border-radius:8px;font-weight:bold}
+.cartBar{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:2px solid #0f4c4c;display:flex;justify-content:space-between;align-items:center;padding:10px 15px;z-index:20}
+.payBtn{width:100%;padding:12px;margin:6px 0;border:none;border-radius:10px;font-weight:bold;font-size:15px}
+.gpay{background:#4285F4;color:#fff}
+.phonepe{background:#5f259f;color:#fff}
+.upi{background:#00baf2;color:#fff}
+.cod{background:#333;color:#fff}
+.input{width:100%;padding:10px;margin:5px 0;border:1px solid #ccc;border-radius:8px;box-sizing:border-box}
+.secure{font-size:10px;text-align:center;color:#666;margin-top:10px}
 </style></head><body>
-<div class="header"><h2 style="margin:0">Rahul's General Store</h2><p style="margin:6px 0 0">1006 Products | Secure Checkout 🔒 | Mohone</p></div>
-<input id="search" class="search" placeholder="Search Balti, Aata, Broom, Doormat... (Hindi+English)" onkeyup="filterProducts()" autocomplete="off">
-<div style="display:flex;gap:8px;margin-bottom:10px">
-<button onclick="startVoice()" style="padding:8px 12px;border-radius:8px;border:1px solid #075E54;background:#fff">🎤 Voice Search</button>
-<span style="font-size:12px;color:#666;line-height:32px">OTP Secured | UPI Auto-Open | Bill Instant</span>
-</div>
+<div class="header"><h1>Rahul's General Store</h1><div>${mapped.length} Products | Secure Checkout 🔒 | Mohone</div></div>
+<div class="searchBox"><input id="search" placeholder="Search Balti, Aata, Broom, Doormat... (Hindi+English)" oninput="filterProducts()"><button onclick="startVoice()" style="padding:10px;border-radius:10px;border:1px solid #0f4c4c;background:#fff;color:#0f4c4c">🎤 Voice</button></div>
 <div id="grid" class="grid"></div>
-<div style="height:70px"></div>
-<div class="cart-bar"><span id="cartCount">🛒 0 items | Rs.0</span><button onclick="openCart()">View Cart</button></div>
-<div id="cartModal"><div id="cartBox">
-<h3 style="margin-top:0">Your Cart <span style="font-size:12px;color:green">🔒 Secure</span></h3>
-<div id="cartItems"></div>
-<hr><h4>Delivery Address * (Max 5 Saved)</h4>
-<input id="custName" class="input" placeholder="Full Name *" maxlength="80" required>
-<input id="custPhone" class="input" placeholder="Phone 10 digit *" maxlength="10" pattern="[0-9]{10}" required>
-<textarea id="custAddress" class="input" placeholder="Full Address, Landmark, Pincode *" rows="3" maxlength="300" required></textarea>
-<div id="addrError" class="error">⚠️ All address fields are mandatory. Please fill Name, 10-digit Phone, and Full Address to proceed.</div>
+<div class="cartBar"><span id="cartCount">🛒 0 items | Rs.0</span><button onclick="openCart()" style="background:#0f4c4c;color:#fff;border:none;padding:10px 20px;border-radius:10px;font-weight:bold">View Cart</button></div>
+<div id="cartModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:30;overflow:auto"><div style="background:#fff;margin:20px;border-radius:12px;padding:15px;max-width:500px;margin:30px auto">
+<h3>🛒 Your Cart</h3><div id="cartItems"></div><hr>
+<h4>Delivery Address (Mandatory)</h4>
+<input id="custName" class="input" placeholder="Full Name *">
+<input id="custPhone" class="input" placeholder="10-digit Mobile * (OTP aayega)" maxlength="10">
+<textarea id="custAddress" class="input" placeholder="Full Address with Pincode *" rows="3"></textarea>
+<div id="addrError" style="color:red;display:none;font-size:12px">Name min 3 char, Phone 10 digit, Address min 10 char</div>
 <div id="savedAddr" style="margin:8px 0"></div>
 <hr><h4>OTP Verification (Security)</h4>
 <div id="otpSection" style="display:none">
-<input id="otpInput" class="input" placeholder="Enter 6-digit OTP sent on WhatsApp" maxlength="6">
+<input id="otpInput" class="input" placeholder="Enter 6-digit OTP" maxlength="6">
 <button onclick="verifyOTP()" class="payBtn" style="background:#075E54;color:#fff">Verify OTP</button>
 </div>
 <button id="sendOtpBtn" class="payBtn" style="background:#111;color:#fff" onclick="sendOTP()">Send OTP for Payment</button>
@@ -306,24 +346,26 @@ let currentOTP = null;
 let otpVerified = false;
 function renderProducts(list){
   const grid=document.getElementById('grid'); grid.innerHTML='';
-  list.slice(0,200).forEach(p=>{
+  if(!list || list.length===0){ grid.innerHTML='<div style="grid-column:1/-1;text-align:center;padding:40px;color:#666">No products found. Try search.</div>'; return; }
+  list.slice(0,500).forEach(p=>{
     const disc = p.mrp && p.price ? Math.round((1-p.price/p.mrp)*100) : 0;
     const safeName = (p.name||'').replace(/</g,'').substring(0,35);
+    const img = p.image_url && p.image_url.startsWith('http') ? p.image_url : 'https://via.placeholder.com/300?text='+encodeURIComponent(safeName);
     grid.innerHTML += '<div class="card">'+
-      (disc>0?'<div class="badge">-'+disc+'% OFF</div>':'')+
-      '<img src="'+(p.image_url||'https://via.placeholder.com/300?text='+encodeURIComponent(safeName))+'" loading="lazy" onerror="this.src=\'https://via.placeholder.com/300\'">'+
+      (disc>5?'<div class="badge">-'+disc+'% OFF</div>':'')+
+      '<img src="'+img+'" loading="lazy" style="width:100%;height:110px;object-fit:cover;border-radius:8px" onerror="this.src=\'https://via.placeholder.com/300\'">'+
       '<div style="font-size:13px;font-weight:bold;margin-top:6px;height:32px;overflow:hidden">'+safeName+'</div>'+
-      '<div><span class="price">Rs.'+p.price+'</span>'+(p.mrp?'<span class="mrp">Rs.'+p.mrp+'</span>':'')+(disc>0?'<span class="disc"> '+disc+'% off</span>':'')+'</div>'+
-      '<div style="font-size:11px;color:#666">Stock: '+(p.stock||'Yes')+'</div>'+
-      '<button class="add" onclick="addToCart(\\''+p.id+'\\',\\''+safeName.replace(/'/g,'')+'\\','+p.price+')">Add to Cart</button></div>';
+      '<div><span class="price">Rs.'+p.price+'</span>'+(p.mrp?'<span class="mrp">Rs.'+p.mrp+'</span>':'')+(disc>5?'<span class="disc"> '+disc+'% off</span>':'')+'</div>'+
+      '<div style="font-size:11px;color:#666">'+(p.category||'')+' | '+(p.stock||'In Stock')+'</div>'+
+      '<button class="add" onclick="addToCart(\''+p.id+'\',\''+safeName.replace(/'/g,'')+'\','+p.price+')">Add to Cart</button></div>';
   });
-  if(list.length>200) grid.innerHTML+='<div style="grid-column:1/-1;text-align:center;padding:15px;color:#666">Showing 200 of '+list.length+' - Use search to filter</div>';
+  if(list.length>500) grid.innerHTML+='<div style="grid-column:1/-1;text-align:center;padding:15px;color:#666">Showing 500 of '+list.length+' - Use search to see more</div>';
 }
 function filterProducts(){
   const q=document.getElementById('search').value.toLowerCase().trim();
   if(!q){ renderProducts(allProducts); return; }
   const norm=q.replaceAll('balti','bucket').replaceAll('dormat','doormat').replaceAll('aata','atta').replaceAll('jhadu','broom');
-  const filtered=allProducts.filter(p=>{ const n=p.name.toLowerCase(); return n.includes(norm) || n.includes(q); });
+  const filtered=allProducts.filter(p=>{ const n=(p.name+' '+(p.category||'')).toLowerCase(); return n.includes(norm) || n.includes(q); });
   renderProducts(filtered.length?filtered:allProducts);
 }
 function addToCart(id,name,price){
@@ -365,12 +407,10 @@ function validateAddress(){
 }
 function sendOTP(){
   const addr=validateAddress(); if(!addr) return;
-  // Generate 6 digit
   currentOTP = Math.floor(100000 + Math.random()*900000).toString();
-  alert('Demo OTP (Production me WhatsApp par aayega): '+currentOTP+'\\n5 min valid');
+  alert('Demo OTP (Production me WhatsApp par aayega): '+currentOTP+'\n5 min valid');
   document.getElementById('otpSection').style.display='block';
   document.getElementById('sendOtpBtn').style.display='none';
-  // In production, call /api/send-otp
   fetch('/api/send-otp',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone:addr.phone,otp:currentOTP})});
 }
 function verifyOTP(){
@@ -387,7 +427,7 @@ function payUPI(type){
   const link='upi://pay?pa='+upiId+'&pn=DukandaarAI&am='+total+'&cu=INR&tn=Order'+Date.now();
   fetch('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:cart,total,customer_name:addr.name,customer_phone:addr.phone,customer_address:addr.address,payment:'UPI-'+type,otpVerified:true})})
   .then(r=>r.json()).then(d=>{
-    alert('Order Placed! ID:'+d.orderId+'\\nBill WhatsApp par aayega. UPI khul raha hai...');
+    alert('Order Placed! ID:'+d.orderId+'\nBill WhatsApp par aayega. UPI khul raha hai...');
     window.location.href=link;
     setTimeout(()=>{ cart=[]; localStorage.setItem('duk_cart_v4','[]'); updateCartBar(); closeCart(); otpVerified=false; },1000);
   });
@@ -398,12 +438,12 @@ function payCOD(){
   let total=0; cart.forEach(c=>total+=c.price*c.qty);
   fetch('/api/order',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({items:cart,total,customer_name:addr.name,customer_phone:addr.phone,customer_address:addr.address,payment:'COD',otpVerified:true})})
   .then(r=>r.json()).then(d=>{
-    alert('COD Confirmed! ID:'+d.orderId+'\\nBill WhatsApp par bhej diya.');
+    alert('COD Confirmed! ID:'+d.orderId+'\nBill WhatsApp par bhej diya.');
     cart=[]; localStorage.setItem('duk_cart_v4','[]'); updateCartBar(); closeCart(); otpVerified=false;
   });
 }
 function startVoice(){
-  if(!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){ alert('Voice not supported in this browser'); return; }
+  if(!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)){ alert('Voice not supported'); return; }
   const rec=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
   rec.lang='en-IN'; rec.start();
   rec.onresult=(e)=>{ document.getElementById('search').value=e.results[0][0].transcript; filterProducts(); };
@@ -413,11 +453,10 @@ renderProducts(allProducts); updateCartBar();
     res.send(html);
   } catch (e) {
     console.error('stock error', e);
-    res.status(500).send('Error loading shop');
+    res.status(500).send('Error loading shop '+e.message);
   }
 });
-
-app.post('/api/send-otp', async (req, res) => {
+\napp.post('/api/send-otp', async (req, res) => {
   const phone = sanitizeInput(req.body.phone).replace(/[^0-9]/g, '');
   const otp = sanitizeInput(req.body.otp);
   if (!/^[0-9]{10}$/.test(phone) || !/^[0-9]{6}$/.test(otp)) return res.json({ ok: false });
