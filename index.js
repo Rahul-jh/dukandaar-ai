@@ -1,6 +1,6 @@
 // =============================================================================
 // DUKAANDAAR AI - RAHUL'S GENERAL STORE - MOHONE
-// VERSION 7.2 - WHATSAPP AUTO-REPLY FIX - ULTIMATE SECURE
+// VERSION 7.3 - REAL AUTO-SEND FIX - ULTIMATE SECURE
 // Owner: Rahul Jha
 // Fix: Added /track, /stock, /webhook auto-reply for Hi messages
 // =============================================================================
@@ -13,6 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -170,6 +171,72 @@ Options:
 Kya help chahiye?`;
 }
 
+
+// ==================== REAL WHATSAPP SENDING - CLOUD API ====================
+import axios from 'axios';
+
+async function sendWhatsAppMessage(to, message) {
+  try {
+    const cleanTo = to.toString().replace(/[^0-9]/g, '').slice(-12);
+    // Ensure country code - assume India 91 if 10 digits
+    const finalTo = cleanTo.length === 10 ? `91${cleanTo}` : cleanTo;
+    
+    console.log(`📤 Attempting to send WhatsApp to ${finalTo}: ${message.slice(0,50)}...`);
+
+    // Method 1: WhatsApp Cloud API (Meta)
+    const token = process.env.WHATSAPP_TOKEN || process.env.WHATSAPP_ACCESS_TOKEN || '';
+    const phoneId = process.env.WHATSAPP_PHONE_ID || process.env.PHONE_NUMBER_ID || '';
+
+    if (token && phoneId) {
+      try {
+        const url = `https://graph.facebook.com/v18.0/${phoneId}/messages`;
+        const resp = await axios.post(url, {
+          messaging_product: 'whatsapp',
+          to: finalTo,
+          type: 'text',
+          text: { body: message }
+        }, {
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+        });
+        console.log('✅ WhatsApp Cloud API sent:', resp.data.messages?.[0]?.id || 'ok');
+        return { success: true, method: 'cloud_api', id: resp.data.messages?.[0]?.id };
+      } catch (e) {
+        console.log('❌ Cloud API failed:', e.response?.data || e.message);
+      }
+    }
+
+    // Method 2: Generic webhook provider (WATI / Interakt / custom) - if WHATSAPP_API_URL set
+    const customUrl = process.env.WHATSAPP_API_URL || '';
+    const customKey = process.env.WHATSAPP_API_KEY || '';
+    if (customUrl) {
+      try {
+        const resp = await axios.post(customUrl, {
+          to: finalTo,
+          message: message,
+          phone: finalTo,
+          text: message
+        }, {
+          headers: { 'Authorization': customKey ? `Bearer ${customKey}` : undefined, 'Content-Type': 'application/json' }
+        });
+        console.log('✅ Custom WhatsApp API sent:', resp.data);
+        return { success: true, method: 'custom_api' };
+      } catch (e) {
+        console.log('❌ Custom API failed:', e.response?.data || e.message);
+      }
+    }
+
+    // If no API configured, log for manual testing
+    console.log(`⚠️ No WHATSAPP_TOKEN or WHATSAPP_API_URL configured. Reply NOT auto-sent to ${finalTo}. Configure in Render Env Vars.`);
+    console.log(`📝 Reply that SHOULD have been sent: ${message}`);
+    return { success: false, reason: 'No WhatsApp API configured - set WHATSAPP_TOKEN and WHATSAPP_PHONE_ID in Render' };
+
+  } catch (err) {
+    console.error('sendWhatsAppMessage error:', err.message);
+    return { success: false, error: err.message };
+  }
+}
+
+
 // ==================== ROUTES - MAIN ====================
 app.get('/', (req, res) => {
   res.json({
@@ -286,9 +353,10 @@ async function handleWhatsAppWebhook(req, res) {
       return res.send(`<Response><Message>${replyText}</Message></Response>`);
     }
 
-    // For WhatsApp Cloud API - if you have token, uncomment and set env
-    // const token = process.env.WHATSAPP_TOKEN
-    // if token, we would call graph.facebook.com to send message here
+    // REAL SEND - Try to actually send via WhatsApp Cloud API
+    // This will auto-send reply to customer
+    const sendResult = await sendWhatsAppMessage(from, replyText);
+    console.log('Send result:', sendResult);
 
     // Default JSON response - most providers accept this
     return res.json({
@@ -314,11 +382,12 @@ app.post('/api/whatsapp/webhook', handleWhatsAppWebhook);
 app.get('/api/whatsapp/webhook', handleWhatsAppWebhook);
 app.post('/api/webhook/whatsapp', handleWhatsAppWebhook);
 
-// Manual send endpoint for testing
-app.post('/api/whatsapp/send', (req, res) => {
+// Manual send endpoint for testing - NOW ACTUALLY SENDS
+app.post('/api/whatsapp/send', async (req, res) => {
   const { to, message } = req.body;
-  console.log(`📤 Would send to ${to}: ${message}`);
-  res.json({ success: true, to, message, note: "In production, integrate with WhatsApp API here. For now, auto-reply is active via webhook." });
+  if (!to || !message) return res.status(400).json({ error: 'to and message required' });
+  const result = await sendWhatsAppMessage(to, message);
+  res.json({ success: result.success, to, message, result });
 });
 
 // ==================== OTHER ROUTES ====================
@@ -347,7 +416,7 @@ app.use((req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Dukaandaar AI 7.2 WHATSAPP FIX Running on ${PORT}`);
+  console.log(`🚀 Dukaandaar AI 7.3 REAL SEND Running on ${PORT}`);
   console.log(`✅ Auto-reply ACTIVE for /webhook and /api/whatsapp/webhook`);
   console.log(`📦 Track: /track?phone=9028810953 | Stock: /stock`);
 });
