@@ -1,16 +1,12 @@
 {
-  "name": "dukaandaar-ai",
-  "version": "7.0.0",
-  "type": "module",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
+  "name": "dukandaar-ai",
+  "version": "8.0.0",
   "dependencies": {
     "express": "^4.18.2",
     "body-parser": "^1.20.2",
     "cors": "^2.8.5",
     "axios": "^1.6.0",
-    "@supabase/supabase-js": "^2.39.0"
+    "@supabase/supabase-js": "^2.39.0",
+    "dotenv": "^16.3.1"
   }
 }
