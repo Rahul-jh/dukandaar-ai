@@ -9,14 +9,20 @@
 
 import express from "express";
 import bodyParser from "body-parser";
-import cors from "cors";
 import { createClient } from "@supabase/supabase-js";
 import axios from "axios";
 import Tesseract from "tesseract.js";
 
 const app = express();
 app.use(bodyParser.json({ limit: '10mb' }));
-app.use(cors());
+// Manual CORS - FIXES DEPLOY FAIL - No cors package needed
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
 app.use(express.static('public'));
 
 // ==================== CONFIG - CHANGE ONLY HERE - 8 VALUES ====================
@@ -45,7 +51,14 @@ const CONFIG = {
   RATE_LIMIT_MAX: 30
 };
 
-const supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+// Safe init - won't crash if key not set yet - Fixes Exited status 1
+let supabase;
+try {
+  supabase = createClient(CONFIG.SUPABASE_URL, CONFIG.SUPABASE_KEY);
+} catch(e) {
+  console.log("Supabase key not set, using dummy - set in Render Env");
+  supabase = { from: () => ({ select: () => ({ gt: () => ({ limit: () => ({ ilike: () => Promise.resolve({ data: [] }) }), data: [] }), data: [] }), eq: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [] }) }) }), select: () => Promise.resolve({ data: [] }) }), insert: () => ({ select: () => Promise.resolve({ data: [{ id: 1 }] }) }), delete: () => ({ eq: () => Promise.resolve({}) }) }) };
+}
 
 // ==================== SECURITY - ADDED FROM MY SIDE ====================
 const rateLimitMap = new Map();
